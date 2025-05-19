@@ -26,6 +26,7 @@ struct particle
     float pressure_y;
     float visc_x;
     float visc_y;
+    int hash;
 };
 
 
@@ -132,12 +133,27 @@ void updateParticle(particle& p, float dt)
     p.x += p.vx * dt;
     p.y += p.vy * dt;
     
-    cout << "Particle position: (" << p.x << ", " << p.y << ")\n";
+    p.hash = findParticleQuadrant(p.x, p.y);
 
     p.pressure_x = 0.f;
     p.pressure_y = 0.f;
     p.visc_x = 0.f;
     p.visc_y = 0.f;
+}
+
+int compare_by_hash(const void* a, const void* b) {
+    int ha = ((particle*)a)->hash;
+    int hb = ((particle*)b)->hash;
+    return (ha > hb) - (ha < hb);
+}
+
+int findParticleQuadrant(float x, float y)
+{
+    int ix = (int)x;
+    int iy = (int)y;
+    int qx = ix % SMOOTHING_RADIUS;
+    int qy = iy % SMOOTHING_RADIUS;
+    return (qx * 2381 + qy * 6661) % (WIDTH/SMOOTHING_RADIUS * HEIGTH/SMOOTHING_RADIUS);
 }
 
 void initParticles(particle* particles, int N)
@@ -153,10 +169,12 @@ void initParticles(particle* particles, int N)
         particles[i].density = 0.f;
         particles[i].visc_x = 0.f;
         particles[i].visc_y = 0.f;
+        particles[i].hash = findParticleQuadrant(particles[i].x, particles[i].y);
     }
 }
 
 
+}
 
 int main()
 {
@@ -165,6 +183,8 @@ int main()
     int N = 1000;
     float dt = 0.16f;
 
+    
+    int* lookup = (int*)malloc(sizeof(int) * (WIDTH/SMOOTHING_RADIUS * HEIGHT/SMOOTHING_RADIUS));
     particle* particles = (particle*)malloc(sizeof(particle) * N);
     initParticles(particles, N);
     sf::Clock frameClock;
@@ -192,7 +212,9 @@ int main()
             if (event.type == sf::Event::Closed)
                 window.close();
         }
-        
+
+        qsort(particles, N, sizeof(particle), compare_by_hash);
+
         computeDensity(particles, N);
         computePreassure(particles, N);
 
